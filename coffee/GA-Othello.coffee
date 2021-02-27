@@ -1,8 +1,8 @@
 range = (number, number2)->
     if number2 is undefined
-        return [...Array(number)].map((_, i) => i)
+        return [0...number]
     else
-        return [...Array(number2 - number)].map((_, i) => i + number)
+        return [number...number2]
 
 log = (val) ->
     console.log(val)
@@ -42,7 +42,8 @@ SIRO  = 1
 BLANK = 0
 
 MaxGeneration = 30
-MaxPopulation = 1000
+MaxPopulation = 30
+MatchNum      = 30
 
 class Main
     constructor: (args) ->
@@ -52,33 +53,39 @@ class Main
         KURO_Cnt = 0
         SIRO_Cnt = 0
         Drow     = 0
+        Win_Cnt  = 0
 
-        for generationCnt in range(MaxGeneration)
-            for number in range(MaxPopulation)
-                othello = new Othello()
-                gameEnd = false
-                for i in range(40)
-                    KURO_PlacebleList = othello.getPlacebleList(KURO)
-                    if KURO_PlacebleList.length isnt 0
-                        othello.reverse(geneticAlgorithm.Act(KURO_PlacebleList, number), KURO)
-                        gameEnd = false
-                    else
-                        if !gameEnd
-                            gameEnd = true
+        for generationCnt in range(MaxGeneration) #世代数ループ
+            for number in range(MaxPopulation) #１世代の人数ループ
+                for match in range(MatchNum)
+                    othello = new Othello()
+                    gameEnd = false
+                    for i in range(40) #１試合ループ
+                        KURO_PlacebleList = othello.getPlacebleList(KURO)
+                        if KURO_PlacebleList.length isnt 0
+                            othello.reverse(geneticAlgorithm.Act(KURO_PlacebleList, number), KURO)
+                            gameEnd = false
                         else
-                            break
+                            if !gameEnd
+                                gameEnd = true
+                            else
+                                break
 
-                    SIRO_PlacebleList = othello.getPlacebleList(SIRO)
-                    if SIRO_PlacebleList.length isnt 0
-                        othello.reverse(@randomChoice(SIRO_PlacebleList), SIRO)
-                        gameEnd = false
-                    else
-                        if !gameEnd
-                            gameEnd = true
+                        SIRO_PlacebleList = othello.getPlacebleList(SIRO)
+                        if SIRO_PlacebleList.length isnt 0
+                            othello.reverse(@randomChoice(SIRO_PlacebleList), SIRO)
+                            gameEnd = false
                         else
-                            break
-                
-                geneticAlgorithm.rating(othello.judge(), number)
+                            if !gameEnd
+                                gameEnd = true
+                            else
+                                break
+                    
+                    if othello.judge() is geneticAlgorithm.me
+                        Win_Cnt++
+
+                geneticAlgorithm.rating(Win_Cnt, number)
+                Win_Cnt = 0
                 if othello.judge() is KURO
                     KURO_Cnt++
                 else if othello.judge() is SIRO
@@ -91,6 +98,8 @@ class Main
             KURO_Cnt = 0
             Drow     = 0
             geneticAlgorithm.makeNextGeneration(generationCnt)
+
+        log geneticAlgorithm.Strongest()
     
     randomChoice : (placeblelist) ->
         index = randomInt(placeblelist.length)
@@ -183,6 +192,8 @@ class GeneticAlgorithm
     UniformCrossPer   : 0.15
     WinnerSelectionPer: 0.8
     RewardList        : []
+    StrongestWinCnt   : 0
+    StrongestGane     : []
     constructor : (myColor) ->
         @me = myColor
         for i in range(MaxPopulation)
@@ -203,22 +214,15 @@ class GeneticAlgorithm
 
         return {"x" : Math.floor(index / 8), "y" : index % 8}
 
-    rating : (winner, number) -> 
-        if winner is @me
-            @RewardList.push({
-                "winner" : "me"
-                "gane"   : @CurrentGeneration[number]
-            })
-        else if winner is BLANK
-            @RewardList.push({
-                "winner" : "none"
-                "gane"   : @CurrentGeneration[number]
-            })
-        else 
-            @RewardList.push({
-                "winner" : "enemy"
-                "gane"   : @CurrentGeneration[number]
-            })
+    rating : (winnum, number) -> 
+        @RewardList.push({
+            "WinCnt" : winnum
+            "gane"   : @CurrentGeneration[number]
+        })
+
+        if @StrongestWinCnt <= winnum
+            @StrongestWinCnt = winnum
+            @StrongestGane   = @CurrentGeneration[number]
     
     makeNextGeneration : (geneCnt) ->
         for i in range(MaxPopulation)
@@ -282,7 +286,7 @@ class GeneticAlgorithm
         notwinnnerData = []
 
         for reward in @RewardList
-            if reward["winner"] is "me"
+            if reward["WinCnt"] >= MatchNum * 3 / 4
                 winnerData.push(reward["gane"])
             else
                 notwinnnerData.push(reward["gane"])
@@ -299,5 +303,8 @@ class GeneticAlgorithm
                 parent.push(randomChoiceArr(notwinnnerData))
 
         return parent
+    
+    Strongest : () ->
+        return {"win" : @StrongestWinCnt, "gane" : @StrongestGane}
 
 main = new Main()
